@@ -11,6 +11,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
     $ArrayAbsolute       = @('on', 'follow', 'off')
     $ArrayTime           = @('modified', 'accessed', 'created')
     $ArrayTimeStyle      = @('default', 'iso', 'long-iso', 'full-iso', 'relative', '+%Y-%m-%d %H:%M', '+%Y.%m.%d %H:$M:$s')
+    $ArrayCodeMode       = @('lines', 'percent', 'both')
 
     $commandElements = $commandAst.CommandElements
     $command = @(
@@ -63,7 +64,17 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             break
         }
         '*;--classify' {
-            $ArrayWhen | 
+            $ArrayWhen |
+            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
+            break
+        }
+        '*;--loc' {
+            $ArrayCodeMode |
+            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
+            break
+        }
+        '*;--code' {
+            $ArrayCodeMode |
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
             break
         }
@@ -73,6 +84,11 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             break
         }
         '*;--icons' {
+            $ArrayWhen | 
+            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
+            break
+        }
+        '*;--hyperlink' {
             $ArrayWhen | 
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
             break
@@ -95,7 +111,9 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('-H'                         ,'links'               , [CompletionResultType]::ParameterName, 'list each file''s number of hard links')
             [CompletionResult]::new('--links'                    ,'links'               , [CompletionResultType]::ParameterName, 'list each file''s number of hard links') 
         #   [CompletionResult]::new('-i'                         ,'inode'               , [CompletionResultType]::ParameterName, 'list each file''s inode number')
-            [CompletionResult]::new('--inode'                    ,'inode'               , [CompletionResultType]::ParameterName, 'list each file''s inode number') 
+            [CompletionResult]::new('--inode'                    ,'inode'               , [CompletionResultType]::ParameterName, 'list each file''s inode number')
+            [CompletionResult]::new('--loc'                      ,'loc'                 , [CompletionResultType]::ParameterName, 'add lines-of-code and language columns')
+            [CompletionResult]::new('--code'                     ,'code'                , [CompletionResultType]::ParameterName, 'summarise lines of code by language')
         #   [CompletionResult]::new('-M'                         ,'mounts'              , [CompletionResultType]::ParameterName, 'show mount details (Linux and Mac only)')
         #   [CompletionResult]::new('--mounts'                   ,'mounts'              , [CompletionResultType]::ParameterName, 'show mount details (Linux and Mac only)') 
         #   [CompletionResult]::new('-n'                         ,'numeric'             , [CompletionResultType]::ParameterName, 'list numeric user and group IDs')
@@ -158,7 +176,8 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('--colour-scale-mode'        ,'colorscalemode'      , [CompletionResultType]::ParameterName, 'use gradient or fixed colors in --color-scale (fixed, gradient)')
             [CompletionResult]::new('--icons'                    ,'icons'               , [CompletionResultType]::ParameterName, 'when to display icons (always, auto, never)')
             [CompletionResult]::new('--no-quotes'                ,'noquotes'            , [CompletionResultType]::ParameterName, 'don''t quote file names with spaces')
-            [CompletionResult]::new('--hyperlink'                ,'hyperlink'           , [CompletionResultType]::ParameterName, 'display entries as hyperlinks')
+            [CompletionResult]::new('--short-nix'                ,'shortnix'            , [CompletionResultType]::ParameterName, 'abbreviate Nix store hashes in file names and paths')
+            [CompletionResult]::new('--hyperlink'                ,'hyperlink'           , [CompletionResultType]::ParameterName, 'when to display entries as hyperlinks (always, auto, never)')
             [CompletionResult]::new('--absolute'                 ,'absolute'            , [CompletionResultType]::ParameterName, 'display entries with their absolute path (on, follow, off)')
             [CompletionResult]::new('--follow-symlinks'          ,'followsymlinks'      , [CompletionResultType]::ParameterName, 'drill down into symbolic links that point to directories')
         #   [CompletionResult]::new('-w'                         ,'widths'              , [CompletionResultType]::ParameterName, 'set screen width in columns')
@@ -168,7 +187,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('-A'                         ,'filter'              , [CompletionResultType]::ParameterName, 'equivalent to --all; included for compatibility with `ls -A`')
         #   [CompletionResult]::new('--almost-all'               ,'filter'              , [CompletionResultType]::ParameterName, 'equivalent to --all; included for compatibility with `ls -A`')
         #   [CompletionResult]::new('-d'                         ,'filter'              , [CompletionResultType]::ParameterName, 'list directories as files; don''t list their contents')
-            [CompletionResult]::new('--list-dirs'                ,'filter'              , [CompletionResultType]::ParameterName, 'list directories as files; don''t list their contents')
+            [CompletionResult]::new('--treat-dirs-as-files'      ,'filter'              , [CompletionResultType]::ParameterName, 'list directories as files; don''t list their contents')
         #   [CompletionResult]::new('-D'                         ,'filter'              , [CompletionResultType]::ParameterName, 'list only directories')
             [CompletionResult]::new('--only-dirs'                ,'filter'              , [CompletionResultType]::ParameterName, 'list only directories')
         #   [CompletionResult]::new('-f'                         ,'filter'              , [CompletionResultType]::ParameterName, 'list only files')

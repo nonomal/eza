@@ -5,7 +5,7 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use nu_ansi_term::Style;
-use phf::{phf_map, Map};
+use phf::{Map, phf_map};
 
 use crate::fs::File;
 
@@ -155,7 +155,7 @@ impl Icons {
     const WRENCH: char          = '\u{f0ad}';  // 
     const XML: char             = '\u{f05c0}'; // 󰗀
     const XORG:char             = '\u{f369}';  // 
-    const YAML: char            = '\u{e6a8}';  // 
+    const YAML: char            = '\u{e8eb}';  // 
     const YARN: char            = '\u{e6a7}';  // 
 }
 
@@ -571,7 +571,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "cshtml"         => Icons::RAZOR,            // 
     "csproj"         => Icons::LANG_CSHARP,      // 󰌛
     "css"            => Icons::CSS3,             // 
-    "csv"            => Icons::SHEET,            // 
+    "csv"            => '\u{eefc}',              // 
     "csx"            => Icons::LANG_CSHARP,      // 󰌛
     "cts"            => Icons::LANG_TYPESCRIPT,  // 
     "cu"             => '\u{e64b}',              // 
@@ -1121,6 +1121,19 @@ pub fn iconify_style(style: Style) -> Style {
         .or(style.foreground)
         .map(Style::from)
         .unwrap_or_default()
+}
+
+/// Lookup the icon for a plain file name and lowercase extension, without
+/// needing a whole `File`. Used by the `--code` summary to give each
+/// language the icon of a representative source file.
+pub fn icon_for_name_ext(name: &str, ext: Option<&str>) -> char {
+    if let Some(icon) = FILENAME_ICONS.get(name) {
+        *icon
+    } else if let Some(ext) = ext {
+        *EXTENSION_ICONS.get(ext).unwrap_or(&Icons::FILE) //
+    } else {
+        Icons::FILE_UNKNOW // 󰡯
+    }
 }
 
 /// Lookup the icon for a file based on the file's name, if the entry is a

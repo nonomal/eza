@@ -277,10 +277,10 @@ impl FileStyle for ExtensionMappings {
                     }
                 }
                 GlobPattern::Simple(map) => {
-                    if let Some(ext) = maybe_ext {
-                        if let Some(style) = map.get(ext) {
-                            return Some(*style);
-                        }
+                    if let Some(ext) = maybe_ext
+                        && let Some(style) = map.get(ext)
+                    {
+                        return Some(*style);
                     }
                 }
             }
@@ -315,8 +315,8 @@ impl FileStyle for FileTypes {
 
 #[cfg(unix)]
 impl render::BlocksColours for Theme {
-    fn blocksize(&self, prefix: Option<number_prefix::Prefix>) -> Style {
-        use number_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
+    fn blocksize(&self, prefix: Option<unit_prefix::Prefix>) -> Style {
+        use unit_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
 
         #[rustfmt::skip]
         let style = match prefix {
@@ -329,8 +329,8 @@ impl render::BlocksColours for Theme {
         style.unwrap_or_default()
     }
 
-    fn unit(&self, prefix: Option<number_prefix::Prefix>) -> Style {
-        use number_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
+    fn unit(&self, prefix: Option<unit_prefix::Prefix>) -> Style {
+        use unit_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
 
         #[rustfmt::skip]
            let style = match prefix {
@@ -416,8 +416,8 @@ impl render::PermissionsColours for Theme {
 }
 
 impl render::SizeColours for Theme {
-    fn size(&self, prefix: Option<number_prefix::Prefix>) -> Style {
-        use number_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
+    fn size(&self, prefix: Option<unit_prefix::Prefix>) -> Style {
+        use unit_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
 
         #[rustfmt::skip]
         return match prefix {
@@ -429,8 +429,8 @@ impl render::SizeColours for Theme {
         };
     }
 
-    fn unit(&self, prefix: Option<number_prefix::Prefix>) -> Style {
-        use number_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
+    fn unit(&self, prefix: Option<unit_prefix::Prefix>) -> Style {
+        use unit_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
 
         #[rustfmt::skip]
         return match prefix {
@@ -469,6 +469,7 @@ impl FileNameColours for Theme {
     fn broken_filename(&self)     -> Style { apply_overlay(self.ui.broken_symlink(), self.ui.broken_path_overlay()) }
     fn control_char(&self)        -> Style { self.ui.control_char() }
     fn broken_control_char(&self) -> Style { apply_overlay(self.ui.control_char(),   self.ui.broken_path_overlay()) }
+    fn nix_hash(&self)            -> Style { self.ui.punctuation() }
     fn executable_file(&self)     -> Style { self.ui.filekinds.unwrap_or_default().executable() }
     fn mount_point(&self)         -> Style { self.ui.filekinds.unwrap_or_default().mount_point() }
 
@@ -479,19 +480,16 @@ impl FileNameColours for Theme {
     }
 
  fn style_override(&self, file: &File<'_>) -> Option<FileNameStyle> {
-        if let Some(ref name_overrides) = self.ui.filenames {
-            if let Some(file_override) = name_overrides.get(&file.name) {
+        if let Some(ref name_overrides) = self.ui.filenames
+            && let Some(file_override) = name_overrides.get(&file.name) {
                 return Some(*file_override);
             }
-        }
 
-        if let Some(ref ext_overrides) = self.ui.extensions {
-            if let Some(ext) = file.ext.clone() {
-                if let Some(file_override) = ext_overrides.get(&ext) {
+        if let Some(ref ext_overrides) = self.ui.extensions
+            && let Some(ext) = file.ext.clone()
+                && let Some(file_override) = ext_overrides.get(&ext) {
                     return Some(*file_override);
                 }
-            }
-        }
 
         None
     }

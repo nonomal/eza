@@ -4,48 +4,32 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
-#![warn(deprecated_in_future)]
 #![warn(future_incompatible)]
-#![warn(nonstandard_style)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
 #![warn(trivial_casts, trivial_numeric_casts)]
-#![warn(unused)]
-#![warn(clippy::all, clippy::pedantic)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::enum_glob_use)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::match_same_arms)]
-#![allow(clippy::module_name_repetitions)]
+#![warn(clippy::all)]
 #![allow(clippy::non_ascii_literal)]
-#![allow(clippy::option_if_let_else)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::unused_self)]
-#![allow(clippy::upper_case_acronyms)]
-#![allow(clippy::wildcard_imports)]
 
 use std::env;
 use std::ffi::{OsStr, OsString};
-use std::io::{self, stdin, ErrorKind, IsTerminal, Read, Write};
+use std::io::{self, ErrorKind, IsTerminal, Read, Write, stdin};
 use std::path::{Component, PathBuf};
 use std::process::exit;
 
 use nu_ansi_term::{AnsiStrings as ANSIStrings, Style};
+use options::parser::get_command;
 
 use crate::fs::feature::git::GitCache;
 use crate::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
 use crate::fs::{Dir, File};
 use crate::options::stdin::FilesInput;
-use crate::options::{vars, Options, OptionsResult, Vars};
-use crate::output::{details, escape, file_name, grid, grid_details, lines, Mode, View};
+use crate::options::{Options, Vars, vars};
+use crate::output::{Mode, View, code, details, escape, file_name, grid, grid_details, lines};
 use crate::theme::Theme;
 use log::*;
 
 mod fs;
 mod info;
+mod loc;
 mod logger;
 mod options;
 mod output;
@@ -59,14 +43,16 @@ fn main() {
 
     logger::configure(env::var_os(vars::EZA_DEBUG).or_else(|| env::var_os(vars::EXA_DEBUG)));
 
-    let stdout_istty = io::stdout().is_terminal();
+    let cli = get_command().get_matches();
 
+    let stdout_istty = io::stdout().is_terminal();
     let mut input = String::new();
-    let args: Vec<_> = env::args_os().skip(1).collect();
-    match Options::parse(args.iter().map(std::convert::AsRef::as_ref), &LiveVars) {
-        OptionsResult::Ok(options, mut input_paths) => {
-            // List the current directory by default.
-            // (This has to be done here, otherwise git_options won’t see it.)
+    let mut input_paths: Vec<&OsStr> = match cli.get_many("FILE") {
+        Some(x) => x.map(OsString::as_os_str).collect(),
+        None => vec![],
+    };
+    match Options::deduce(&cli, &LiveVars) {
+        Ok(options) => {
             if input_paths.is_empty() {
                 match &options.stdin {
                     FilesInput::Args => {
@@ -79,7 +65,7 @@ fn main() {
                         input_paths.extend(
                             input
                                 .split(&separator.clone().into_string().unwrap_or("\n".to_string()))
-                                .map(std::ffi::OsStr::new)
+                                .map(OsStr::new)
                                 .filter(|s| !s.is_empty())
                                 .collect::<Vec<_>>(),
                         );
@@ -122,22 +108,8 @@ fn main() {
                 }
             }
         }
-
-        OptionsResult::Help(help_text) => {
-            print!("{help_text}");
-        }
-
-        OptionsResult::Version(version_str) => {
-            print!("{version_str}");
-        }
-
-        OptionsResult::InvalidOptions(error) => {
+        Err(error) => {
             eprintln!("eza: {error}");
-
-            if let Some(s) = error.suggestion() {
-                eprintln!("{s}");
-            }
-
             exit(exits::OPTIONS_ERROR);
         }
     }
@@ -254,6 +226,44 @@ impl Exa<'_> {
     /// Will return `Err` if printing to stderr fails.
     pub fn run(mut self) -> io::Result<i32> {
         debug!("Running with options: {:#?}", self.options);
+
+        // The `--code` summary doesn’t list files: it walks the given paths and
+        // prints a per-language lines-of-code breakdown, so handle it up front.
+        if let Mode::Code(opts) = &self.options.view.mode {
+            let opts = *opts;
+            let mut exit_status = 0;
+            let mut roots = Vec::new();
+
+            // Report paths that don’t exist, like the normal listing does,
+            // and count the rest.
+            for file_path in &self.input_paths {
+                let path = PathBuf::from(file_path);
+                if let Err(e) = std::fs::symlink_metadata(&path) {
+                    exit_status = 2;
+                    writeln!(io::stderr(), "{file_path:?}: {e}")?;
+                } else {
+                    roots.push(path);
+                }
+            }
+            let file_style = &self.options.view.file_style;
+            let show_icons = match file_style.show_icons {
+                file_name::ShowIcons::Always(_) => true,
+                file_name::ShowIcons::Automatic(_) => file_style.is_a_tty,
+                file_name::ShowIcons::Never => false,
+            };
+            if roots.is_empty() {
+                return Ok(exit_status);
+            }
+
+            let r = code::Render {
+                theme: &self.theme,
+                opts: &opts,
+                roots,
+                show_icons,
+            };
+            r.render(&mut self.writer)?;
+            return Ok(exit_status);
+        }
 
         let mut files = Vec::new();
         let mut dirs = Vec::new();
@@ -435,7 +445,7 @@ impl Exa<'_> {
         } = self.options.view;
 
         match (mode, self.console_width) {
-            (Mode::Grid(ref opts), Some(console_width)) => {
+            (Mode::Grid(opts), Some(console_width)) => {
                 let filter = &self.options.filter;
                 let r = grid::Render {
                     files,
@@ -448,7 +458,7 @@ impl Exa<'_> {
                 r.render(&mut self.writer)
             }
 
-            (Mode::Grid(ref opts), None) => {
+            (Mode::Grid(opts), None) => {
                 let filter = &self.options.filter;
                 let r = grid::Render {
                     files,
@@ -472,7 +482,7 @@ impl Exa<'_> {
                 r.render(&mut self.writer)
             }
 
-            (Mode::Details(ref opts), _) => {
+            (Mode::Details(opts), _) => {
                 let filter = &self.options.filter;
                 let recurse = self.options.dir_action.recurse_options();
 
@@ -494,7 +504,7 @@ impl Exa<'_> {
                 r.render(&mut self.writer)
             }
 
-            (Mode::GridDetails(ref opts), Some(console_width)) => {
+            (Mode::GridDetails(opts), Some(console_width)) => {
                 let details = &opts.details;
                 let row_threshold = opts.row_threshold;
 
@@ -519,7 +529,7 @@ impl Exa<'_> {
                 r.render(&mut self.writer)
             }
 
-            (Mode::GridDetails(ref opts), None) => {
+            (Mode::GridDetails(opts), None) => {
                 let opts = &opts.to_details_options();
                 let filter = &self.options.filter;
                 let recurse = self.options.dir_action.recurse_options();
@@ -541,6 +551,10 @@ impl Exa<'_> {
                 };
                 r.render(&mut self.writer)
             }
+
+            // The code summary never lists files; it’s handled up front in
+            // `run` before we ever get here.
+            (Mode::Code(_), _) => unreachable!("--code is handled in Exa::run"),
         }
     }
 }
